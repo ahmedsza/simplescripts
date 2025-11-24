@@ -263,13 +263,29 @@ install_agent_service() {
         print_header "Installing Agent as Service"
         
         print_info "Installing systemd service..."
-        sudo "$AGENT_DIR/svc.sh" install "$AGENT_USER"
+        # Change to agent directory before running svc.sh
+        (cd "$AGENT_DIR" && sudo ./svc.sh install "$AGENT_USER")
+        
+        if [ $? -ne 0 ]; then
+            print_error "Failed to install service"
+            print_warning "The agent is configured but not running as a service"
+            print_info "To start manually, run: sudo -u $AGENT_USER $AGENT_DIR/run.sh"
+            return 1
+        fi
         
         print_info "Starting agent service..."
-        sudo "$AGENT_DIR/svc.sh" start
+        (cd "$AGENT_DIR" && sudo ./svc.sh start)
         
-        print_info "Enabling agent service on boot..."
-        sudo systemctl enable azdevops-agent
+        # Get the actual service name from the agent directory
+        if [ -f "$AGENT_DIR/.service" ]; then
+            SERVICE_NAME=$(cat "$AGENT_DIR/.service")
+            print_info "Service name: $SERVICE_NAME"
+            
+            print_info "Enabling agent service on boot..."
+            sudo systemctl enable "$SERVICE_NAME"
+        else
+            print_warning "Could not determine service name, skipping enable"
+        fi
         
         print_success "Agent service installed and started"
     else
@@ -451,7 +467,12 @@ verify_installation() {
     
     if [ "$RUN_AS_SERVICE" = "true" ]; then
         print_info "Agent service status:"
-        sudo systemctl status azdevops-agent --no-pager | head -n 10 || true
+        if [ -f "$AGENT_DIR/.service" ]; then
+            SERVICE_NAME=$(cat "$AGENT_DIR/.service")
+            sudo systemctl status "$SERVICE_NAME" --no-pager | head -n 10 || true
+        else
+            print_warning "Service file not found"
+        fi
     fi
 }
 
@@ -469,12 +490,14 @@ display_post_install_info() {
     echo -e "  Agent Dir:    ${YELLOW}$AGENT_DIR${NC}\n"
     
     echo -e "${CYAN}Service Management:${NC}"
-    if [ "$RUN_AS_SERVICE" = "true" ]; then
-        echo -e "  ${YELLOW}sudo systemctl status azdevops-agent${NC}  - Check service status"
-        echo -e "  ${YELLOW}sudo systemctl start azdevops-agent${NC}   - Start service"
-        echo -e "  ${YELLOW}sudo systemctl stop azdevops-agent${NC}    - Stop service"
-        echo -e "  ${YELLOW}sudo systemctl restart azdevops-agent${NC} - Restart service"
-        echo -e "  ${YELLOW}sudo journalctl -u azdevops-agent -f${NC}  - View service logs\n"
+    if [ "$RUN_AS_SERVICE" = "true" ] && [ -f "$AGENT_DIR/.service" ]; then
+        SERVICE_NAME=$(cat "$AGENT_DIR/.service")
+        echo -e "  ${YELLOW}sudo systemctl status $SERVICE_NAME${NC}  - Check service status"
+        echo -e "  ${YELLOW}sudo systemctl start $SERVICE_NAME${NC}   - Start service"
+        echo -e "  ${YELLOW}sudo systemctl stop $SERVICE_NAME${NC}    - Stop service"
+        echo -e "  ${YELLOW}sudo systemctl restart $SERVICE_NAME${NC} - Restart service"
+        echo -e "  ${YELLOW}sudo journalctl -u $SERVICE_NAME -f${NC}  - View service logs"
+        echo -e "  ${YELLOW}cd $AGENT_DIR && sudo ./svc.sh status${NC} - Check service via svc.sh\n"
     else
         echo -e "  ${YELLOW}sudo -u $AGENT_USER $AGENT_DIR/run.sh${NC} - Run agent interactively\n"
     fi
@@ -497,7 +520,11 @@ display_post_install_info() {
     echo -e "${CYAN}Configuration Files:${NC}"
     echo -e "  ${YELLOW}$AGENT_DIR/.agent${NC}           - Agent configuration"
     echo -e "  ${YELLOW}$AGENT_DIR/.credentials${NC}     - Agent credentials"
-    echo -e "  ${YELLOW}/etc/systemd/system/azdevops-agent.service${NC} - Service file\n"
+    if [ -f "$AGENT_DIR/.service" ]; then
+        SERVICE_NAME=$(cat "$AGENT_DIR/.service")
+        echo -e "  ${YELLOW}/etc/systemd/system/$SERVICE_NAME${NC} - Service file"
+    fi
+    echo ""
     
     echo -e "${CYAN}Next Steps:${NC}"
     echo -e "1. Verify agent is online in Azure DevOps"
