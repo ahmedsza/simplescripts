@@ -165,25 +165,69 @@ create_agent_user() {
 download_agent() {
     print_header "Downloading Azure DevOps Agent"
     
-    # Get latest agent version
+    # Try to get latest agent version from GitHub API
     print_info "Fetching latest agent version..."
-    AGENT_VERSION=$(curl -s https://api.github.com/repos/microsoft/azure-pipelines-agent/releases/latest | jq -r '.tag_name' | sed 's/v//')
-    print_info "Latest agent version: $AGENT_VERSION"
+    AGENT_VERSION=$(curl -s https://api.github.com/repos/microsoft/azure-pipelines-agent/releases/latest | jq -r '.tag_name' | sed 's/v//' 2>/dev/null)
+    
+    # Fallback to a known working version if GitHub API fails
+    if [ -z "$AGENT_VERSION" ] || [ "$AGENT_VERSION" = "null" ]; then
+        print_warning "Could not fetch latest version from GitHub, using fallback version"
+        AGENT_VERSION="3.243.1"
+    fi
+    
+    print_info "Agent version: $AGENT_VERSION"
     
     AGENT_PACKAGE="vsts-agent-linux-x64-${AGENT_VERSION}.tar.gz"
-    AGENT_URL="https://vstsagentpackage.azureedge.net/agent/${AGENT_VERSION}/${AGENT_PACKAGE}"
     
-    print_info "Downloading agent from: $AGENT_URL"
+    # Try multiple download sources
+    DOWNLOAD_SOURCES=(
+        "https://vstsagentpackage.azureedge.net/agent/${AGENT_VERSION}/${AGENT_PACKAGE}"
+        "https://github.com/microsoft/azure-pipelines-agent/releases/download/v${AGENT_VERSION}/${AGENT_PACKAGE}"
+    )
     
-    # Download as the agent user
+    DOWNLOAD_SUCCESS=false
+    
+    for AGENT_URL in "${DOWNLOAD_SOURCES[@]}"; do
+        print_info "Attempting download from: $AGENT_URL"
+        
+        # Try to download as the agent user
+        if sudo -u "$AGENT_USER" bash <<EOF
+cd "$AGENT_DIR"
+curl -L -f -o "$AGENT_PACKAGE" "$AGENT_URL" 2>/dev/null || wget -O "$AGENT_PACKAGE" "$AGENT_URL" 2>/dev/null
+EOF
+        then
+            if [ -f "$AGENT_DIR/$AGENT_PACKAGE" ]; then
+                print_success "Successfully downloaded agent"
+                DOWNLOAD_SUCCESS=true
+                break
+            fi
+        fi
+        
+        print_warning "Download failed, trying next source..."
+    done
+    
+    if [ "$DOWNLOAD_SUCCESS" = false ]; then
+        print_error "Failed to download agent from all sources"
+        print_info "Please download manually from:"
+        print_info "  https://github.com/microsoft/azure-pipelines-agent/releases"
+        print_info "Place the file in: $AGENT_DIR"
+        exit 1
+    fi
+    
+    # Extract the agent
+    print_info "Extracting agent..."
     sudo -u "$AGENT_USER" bash <<EOF
 cd "$AGENT_DIR"
-curl -L -o "$AGENT_PACKAGE" "$AGENT_URL"
 tar -xzf "$AGENT_PACKAGE"
 rm "$AGENT_PACKAGE"
 EOF
     
-    print_success "Agent downloaded and extracted"
+    if [ $? -eq 0 ]; then
+        print_success "Agent extracted successfully"
+    else
+        print_error "Failed to extract agent package"
+        exit 1
+    fi
 }
 
 # Configure agent
