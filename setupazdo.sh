@@ -181,8 +181,9 @@ download_agent() {
     
     # Try multiple download sources
     DOWNLOAD_SOURCES=(
-        "https://vstsagentpackage.azureedge.net/agent/${AGENT_VERSION}/${AGENT_PACKAGE}"
+        "https://download.agent.dev.azure.com/agent/${AGENT_VERSION}/${AGENT_PACKAGE}"
         "https://github.com/microsoft/azure-pipelines-agent/releases/download/v${AGENT_VERSION}/${AGENT_PACKAGE}"
+        "https://vstsagentpackage.azureedge.net/agent/${AGENT_VERSION}/${AGENT_PACKAGE}"
     )
     
     DOWNLOAD_SUCCESS=false
