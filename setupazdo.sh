@@ -263,18 +263,20 @@ install_agent_service() {
         print_header "Installing Agent as Service"
         
         print_info "Installing systemd service..."
-        # Change to agent directory before running svc.sh
-        (cd "$AGENT_DIR" && sudo ./svc.sh install "$AGENT_USER")
+        # Run svc.sh install as root from the agent directory
+        cd "$AGENT_DIR"
+        sudo -u root ./svc.sh install "$AGENT_USER"
         
         if [ $? -ne 0 ]; then
             print_error "Failed to install service"
             print_warning "The agent is configured but not running as a service"
             print_info "To start manually, run: sudo -u $AGENT_USER $AGENT_DIR/run.sh"
+            cd - > /dev/null
             return 1
         fi
         
         print_info "Starting agent service..."
-        (cd "$AGENT_DIR" && sudo ./svc.sh start)
+        sudo -u root ./svc.sh start
         
         # Get the actual service name from the agent directory
         if [ -f "$AGENT_DIR/.service" ]; then
@@ -287,6 +289,7 @@ install_agent_service() {
             print_warning "Could not determine service name, skipping enable"
         fi
         
+        cd - > /dev/null
         print_success "Agent service installed and started"
     else
         print_warning "Service installation skipped (RUN_AS_SERVICE=false)"
