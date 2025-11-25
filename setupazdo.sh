@@ -318,9 +318,11 @@ install_docker() {
         esac
         
         # Add agent user to docker group
+        print_info "Adding $AGENT_USER to docker group..."
         sudo usermod -aG docker "$AGENT_USER"
         
-        print_success "Docker installed"
+        print_success "Docker installed and $AGENT_USER added to docker group"
+        print_warning "Agent service will need to be restarted for docker group changes to take effect"
     fi
 }
 
@@ -582,11 +584,7 @@ main() {
     configure_agent
     echo ""
     
-    # Install agent as service
-    install_agent_service
-    echo ""
-    
-    # Install additional tools
+    # Install additional tools (before service installation)
     install_docker
     echo ""
     
@@ -609,6 +607,10 @@ main() {
     echo ""
     
     install_powershell
+    echo ""
+    
+    # Install agent as service (after tools installation to ensure docker group is set)
+    install_agent_service
     echo ""
     
     # Verify installation
