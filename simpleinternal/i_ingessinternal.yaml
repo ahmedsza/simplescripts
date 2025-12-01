@@ -1,0 +1,9 @@
+apiVersion: approuting.kubernetes.azure.com/v1alpha1
+kind: NginxIngressController
+metadata:
+  name: ingress-internal
+spec:
+  ingressClassName: ingress-internal
+  controllerNamePrefix: ingress-internal
+  loadBalancerAnnotations: 
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
