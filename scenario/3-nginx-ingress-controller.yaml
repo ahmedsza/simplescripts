@@ -1,0 +1,44 @@
+# Internal NGINX Ingress Controller Configuration
+# This creates an NGINX ingress controller with an Azure internal load balancer
+
+apiVersion: approuting.kubernetes.azure.com/v1alpha1
+kind: NginxIngressController
+metadata:
+  name: ingress-internal
+spec:
+  # Ingress class name that will be referenced in ingress resources
+  ingressClassName: ingress-internal
+  
+  # Controller name prefix for identifying resources
+  controllerNamePrefix: ingress-internal
+  
+  # Load balancer annotations - CRITICAL for internal access
+  loadBalancerAnnotations:
+    # This annotation makes the load balancer internal (private IP only)
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    
+    # Optional: Specify subnet for load balancer IP allocation
+    # Uncomment and set if you want to control which subnet gets the IP
+    # service.beta.kubernetes.io/azure-load-balancer-internal-subnet: "aks-ingress-subnet"
+    
+    # Optional: Request a specific private IP address
+    # Uncomment and set if you need a specific IP
+    # service.beta.kubernetes.io/azure-load-balancer-ipv4: "10.224.0.10"
+    
+    # Optional: Set idle timeout (default is 4 minutes, max is 30 minutes)
+    # service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout: "15"
+  
+  # Optional: Scaling configuration
+  # scaling:
+  #   minReplicas: 2
+  #   maxReplicas: 10
+  #   targetCPUUtilizationPercentage: 80
+  
+  # Optional: Resource requests and limits
+  # resources:
+  #   requests:
+  #     cpu: 100m
+  #     memory: 128Mi
+  #   limits:
+  #     cpu: 500m
+  #     memory: 512Mi

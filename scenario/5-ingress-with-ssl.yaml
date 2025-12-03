@@ -1,0 +1,107 @@
+# Ingress Resources with SSL/TLS Configuration
+# This creates ingress resources that use certificates from Azure Key Vault
+
+---
+# Secret Provider Class for Key Vault Integration
+# This tells the CSI driver how to retrieve certificates from Key Vault
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: keyvault-ssl-certs
+  namespace: demo-app
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    # The userAssignedIdentityID will be automatically configured by app routing
+    # when Key Vault integration is enabled
+    keyvaultName: "MAZ-KV-SAN-DTI-NONPROD01"  # Update with your Key Vault name
+    objects: |
+      array:
+        - |
+          objectName: wildcard-private-eskomdti
+          objectType: secret
+          objectVersion: ""
+    tenantId: "93aedbdc-cc67-4652-aa12-d250a876ae79"  # Update with your tenant ID
+  secretObjects:
+  - secretName: keyvault-cert-secret
+    type: kubernetes.io/tls
+    data:
+    - objectName: wildcard-private-eskomdti
+      key: tls.key
+    - objectName: wildcard-private-eskomdti
+      key: tls.crt
+
+---
+# Ingress for first application with SSL
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app1-ingress
+  namespace: demo-app
+  annotations:
+    # Force HTTPS redirect
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    
+    # SSL protocols and ciphers (optional, for enhanced security)
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    
+    # HSTS header (optional, for production)
+    # nginx.ingress.kubernetes.io/configuration-snippet: |
+    #   more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
+    
+    # Connection timeout settings (optional)
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+spec:
+  # Reference the internal ingress class
+  ingressClassName: ingress-internal
+  
+  # TLS configuration
+  tls:
+  - hosts:
+    - app1.private.eskomdti.com
+    secretName: keyvault-cert-secret
+  
+  # Routing rules
+  rules:
+  - host: app1.private.eskomdti.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: sample-app-service
+            port:
+              number: 80
+
+---
+# Ingress for second application with SSL
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app2-ingress
+  namespace: demo-app
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+spec:
+  ingressClassName: ingress-internal
+  tls:
+  - hosts:
+    - app2.private.eskomdti.com
+    secretName: keyvault-cert-secret
+  rules:
+  - host: app2.private.eskomdti.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: sample-app2-service
+            port:
+              number: 80

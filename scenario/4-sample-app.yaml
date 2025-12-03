@@ -1,0 +1,276 @@
+# Sample Application for Testing Internal Ingress
+# This deploys a simple NGINX application to test the ingress setup
+
+---
+# Namespace for the demo application
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-app
+  labels:
+    name: demo-app
+
+---
+# Deployment - Sample NGINX application
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app
+  namespace: demo-app
+  labels:
+    app: sample-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-app
+  template:
+    metadata:
+      labels:
+        app: sample-app
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        # Custom HTML page to identify the app
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: html
+        configMap:
+          name: sample-app-html
+
+---
+# ConfigMap with custom HTML
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sample-app-html
+  namespace: demo-app
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>AKS Internal Ingress Test</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            .container {
+                text-align: center;
+                background: rgba(255, 255, 255, 0.1);
+                padding: 50px;
+                border-radius: 20px;
+                backdrop-filter: blur(10px);
+                box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            }
+            h1 {
+                font-size: 3em;
+                margin: 0;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            }
+            p {
+                font-size: 1.2em;
+                margin-top: 20px;
+            }
+            .success {
+                color: #4ade80;
+                font-weight: bold;
+            }
+            .info {
+                background: rgba(255, 255, 255, 0.2);
+                padding: 20px;
+                border-radius: 10px;
+                margin-top: 30px;
+            }
+            .hostname {
+                color: #fbbf24;
+                font-family: monospace;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>✓ Success!</h1>
+            <p class="success">AKS Internal Ingress is Working</p>
+            <div class="info">
+                <p>Application: <strong>Sample App</strong></p>
+                <p>Namespace: <strong>demo-app</strong></p>
+                <p>Hostname: <span class="hostname" id="hostname">Loading...</span></p>
+            </div>
+        </div>
+        <script>
+            document.getElementById('hostname').textContent = window.location.hostname;
+        </script>
+    </body>
+    </html>
+
+---
+# Service - ClusterIP service for the application
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app-service
+  namespace: demo-app
+  labels:
+    app: sample-app
+spec:
+  type: ClusterIP
+  selector:
+    app: sample-app
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+
+---
+# Second sample app for testing multiple services
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app2
+  namespace: demo-app
+  labels:
+    app: sample-app2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-app2
+  template:
+    metadata:
+      labels:
+        app: sample-app2
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: html
+        configMap:
+          name: sample-app2-html
+
+---
+# ConfigMap for second app
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sample-app2-html
+  namespace: demo-app
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>AKS Internal Ingress Test - App 2</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                color: white;
+            }
+            .container {
+                text-align: center;
+                background: rgba(255, 255, 255, 0.1);
+                padding: 50px;
+                border-radius: 20px;
+                backdrop-filter: blur(10px);
+                box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            }
+            h1 {
+                font-size: 3em;
+                margin: 0;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            }
+            p {
+                font-size: 1.2em;
+                margin-top: 20px;
+            }
+            .success {
+                color: #4ade80;
+                font-weight: bold;
+            }
+            .info {
+                background: rgba(255, 255, 255, 0.2);
+                padding: 20px;
+                border-radius: 10px;
+                margin-top: 30px;
+            }
+            .hostname {
+                color: #fbbf24;
+                font-family: monospace;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>✓ Success!</h1>
+            <p class="success">AKS Internal Ingress - Application 2</p>
+            <div class="info">
+                <p>Application: <strong>Sample App 2</strong></p>
+                <p>Namespace: <strong>demo-app</strong></p>
+                <p>Hostname: <span class="hostname" id="hostname">Loading...</span></p>
+            </div>
+        </div>
+        <script>
+            document.getElementById('hostname').textContent = window.location.hostname;
+        </script>
+    </body>
+    </html>
+
+---
+# Service for second app
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app2-service
+  namespace: demo-app
+  labels:
+    app: sample-app2
+spec:
+  type: ClusterIP
+  selector:
+    app: sample-app2
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
